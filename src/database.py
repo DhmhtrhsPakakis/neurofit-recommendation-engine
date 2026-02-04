@@ -116,6 +116,28 @@ def log_preference(url : str , preference : str) -> None:
 
     conn.close()
 
+#--- Remove user's preference for a product
+def remove_preference(url: str) -> None :
+    """
+    Remove the users preference for a product.
+    
+    :param url: the url of the product
+    :type url: str
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Find the product's id using the url
+    cursor.execute("SELECT id FROM PRODUCTS WHERE url = ?", (url,))
+    result = cursor.fetchone()
+
+    # If the remove_preference function is called then the product is surely in the table
+    cursor.execute(" DELETE FROM PREFERENCES WHERE product_id = ?", (result,))
+    conn.commit()
+    logger.info(f"The preference for the product {result} was succesfully removed.")
+
+    conn.close()
+
 #--- Get the users embeddings for the LIKE products
 def user_liked_embeddings() -> np.ndarray:
     """
