@@ -11,8 +11,6 @@ import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image 
 from utils import setup_logger
-import numpy as np
-from sklearn.cluster import KMeans
 
 logger = setup_logger("Embeddings Convert")
 # --- Configuration ---
@@ -79,79 +77,3 @@ class VectorConventor:
             logger.critical(f"FIle : {image_path} does not exist.")
             raise
         
-
-    def extract_dominant_color(self, image_path, k=1):
-        """
-        Extract the dominant color from the image as a normalized Vector (R,G,B) with values 0-1 using Kmeans with k=1
-        
-        :param image_path: the path fro the image
-        :param k: the number of clusters
-        """
-        try:
-            # Open the image
-            image = Image.open(image_path).convert("RGB")
-
-            # Crop the image to keep the clothe and resize for reduced complexity
-            width, height = image.size
-
-            # CENTER CROP
-            # Keep the middle 50% of the image
-            left = width * 0.25
-            top = height * 0.25
-            right = width * 0.75
-            bottom = height * 0.75
-
-            image = image.crop((left, top, right, bottom))
-            image = image.resize((50,50))
-
-            # Reshape / Flattening
-            image_np = np.array(image)
-            image_pixels = image_np.reshape(-1, 3)
-
-            # Use K-Means
-            kmeans = KMeans(n_clusters=k, n_init=10)
-            kmeans.fit(image_pixels)
-
-            # Keep the dominant color (The center of the cluster)
-            dominant_color = kmeans.cluster_centers_[0]
-
-            # Normalize from 0-255 to 0-1
-            norm_dominant_color = (dominant_color/255) * 20
-
-            logger.info("Succesfull Color Vector creation.")
-            return norm_dominant_color.astype('float32')
-        except FileNotFoundError:
-            logger.critical(f"FIle : {image_path} does not exist.")
-            raise
-
-
-    def extract_image_vector(self, image_path):
-        """
-        Create the vector that describes the image using resnet's embeddings and KMeans color vector.
-        
-        :param image_path: The path for the image
-        """
-
-        # Create image embedding
-        embedding = self.create_embedding(image_path)
-        # Create image color vector
-        color_vector = self.extract_dominant_color(image_path)
-
-        # Concatenate to create the full vector
-        return color_vector,embedding.mean(),np.concatenate([embedding,color_vector])
-
-# --- ΔΟΚΙΜΑΣΤΙΚΟ ΤΡΕΞΙΜΟ (Αν τρέξεις αυτό το αρχείο μόνο του) ---
-if __name__ == "__main__":
-    # Για να το δοκιμάσεις:
-    # 1. Βρες μια οποιαδήποτε εικόνα (π.χ. test.jpg) και βάλτην στον φάκελο του project.
-    # 2. Άλλαξε το παρακάτω path στο όνομα της εικόνας σου.
-    test_image_path = "src/mayrofoytercalvin.jpeg" 
-    
-    import os
-    vector_convertor = VectorConventor()
-    cv, emb ,vector = vector_convertor.extract_image_vector(test_image_path)
-    print(f"Color Vector: {cv * 255}")
-    print(f"Norm Color Vector: {cv}")
-    print(f"Embedding Mean : {emb}")
-    print(f"Total Vector Mean: {vector.mean()}")
-    
