@@ -35,6 +35,7 @@ def initialize_db():
                    id INTEGER PRIMARY KEY AUTOINCREMENT,
                    url TEXT UNIQUE,
                    image_path TEXT,
+                   category TEXT,
                    embedding TEXT, -- save as json string
                    created_at TIMESTAMP
                 )
@@ -58,7 +59,7 @@ def initialize_db():
 
 
 # --- ADD PRODUCT ---
-def add_product(url : str, image_path : str , embedding_vector : np.ndarray) -> None:
+def add_product(url : str, image_path : str , embedding_vector : np.ndarray, category : str) -> None:
     """
     Add a new product with it's embedding to the PRODUCTS table
     
@@ -68,6 +69,8 @@ def add_product(url : str, image_path : str , embedding_vector : np.ndarray) -> 
     :type image_path: str
     :param embedding_vector: Image's embedding from resnet50
     :type embedding_vector: np.ndarray
+    :param category: clothe's category
+    :type embedding_vector: str
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -75,8 +78,8 @@ def add_product(url : str, image_path : str , embedding_vector : np.ndarray) -> 
     try:
         cursor.execute('''
             INSERT INTO PRODUCTS (url, image_path, embedding, created_at)
-            VALUES(?, ?, ?, ?)
-                       ''',(url, image_path, json.dumps(embedding_vector.tolist()), datetime.now()))
+            VALUES(?, ?, ?, ?, ?)
+                       ''',(url, image_path, category, json.dumps(embedding_vector.tolist()), datetime.now()))
         conn.commit()
     except sqlite3.IntegrityError:
         logger.warning(f"The product {url} already exists in the database. Unsuccesfully insert.")
@@ -139,10 +142,12 @@ def remove_preference(url: str) -> None :
     conn.close()
 
 #--- Get the users embeddings for the LIKE products
-def user_liked_embeddings() -> np.ndarray:
+def user_liked_embeddings(category : str) -> np.ndarray:
     """
     Find the images that the user likes and return the embeddings
     
+    :param category: clothe's category
+    :type category: str
     :return: embeddings
     :rtype: ndarray[2048, dtype[float]]
     """
@@ -151,8 +156,8 @@ def user_liked_embeddings() -> np.ndarray:
     cursor = conn.cursor()
 
     cursor.execute('''
-        SELECT P.embedding FROM PRODUCTS P JOIN PREFERENCES PREF ON P.id = PREF.product_id  WHERE PREF.preference = "LIKE"
-                  ''')
+        SELECT P.embedding FROM PRODUCTS P JOIN PREFERENCES PREF ON P.id = PREF.product_id  WHERE PREF.preference = "LIKE" AND P.category = ?
+                  ''', (category,))
     
     embeddings = []
     for embedding in cursor.fetchall():
