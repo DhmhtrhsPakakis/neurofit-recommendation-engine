@@ -2,20 +2,20 @@
 Module: database.py
 
 Description: Manages database connections and operations for storing and retrieving image embeddings.
-Product table : a table to store the products, which's embedding is calculated.
-Interaction table : Save the likes/Dislikes from the user
+ARTWORKS table : a table to store the artworks, which's embedding is calculated.
+PREFERENCES table : Save the likes/Dislikes from the user
 """
 
 import sqlite3
 import json
 import numpy as np
 from datetime import datetime
-from utils import setup_logger
+from src.utils import setup_logger
 
 logger = setup_logger("Database")
 
 # Databse file name
-DB_NAME = "neurofit.db"
+DB_NAME = "art_recommender.db"
 
 # Function to give acces to the database
 def get_connection():
@@ -24,18 +24,21 @@ def get_connection():
 def initialize_db():
     """
     Create the tables. 
-    """
+    """                                                                                     
 
     conn = get_connection()
     cursor = conn.cursor()
 
-    # --- Products Table ---
+    # --- Artworks Table ---
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS PRODUCTS(
+        CREATE TABLE IF NOT EXISTS ARTWORKS(
                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                   url TEXT UNIQUE,
-                   image_path TEXT,
+                   external_id INTEGER UNIQUE, -- the id from the museum API
+                   image_url TEXT UNIQUE,
+                   page_url TEXT,
                    category TEXT,
+                   title TEXT,
+                   artist TEXT,
                    embedding TEXT, -- save as json string
                    created_at TIMESTAMP
                 )
@@ -45,11 +48,10 @@ def initialize_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS PREFERENCES(
                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                   product_id INTEGER,
+                   artwork_id INTEGER UNIQUE,
                    preference TEXT, -- "LIKE" or "DISLIKE"
                    timestamp TIMESTAMP,
-                   FOREIGN KEY(product_id) REFERENCES PRODUCTS(id)
-                   CONSTRAINT unique_product UNIQUE(product_id) 
+                   FOREIGN KEY(artwork_id) REFERENCES ARTWORKS(id) 
                    )
         ''')
     
@@ -58,40 +60,47 @@ def initialize_db():
     logger.info("Database Tables succesfully created.")
 
 
-# --- ADD PRODUCT ---
-def add_product(url : str, image_path : str , embedding_vector : np.ndarray, category : str) -> None:
+# --- ADD Artwork ---
+def add_artwork(external_id: int, image_url : str, page_url : str , category : str, title : str, artist : str, embedding_vector : np.ndarray) -> None:
     """
-    Add a new product with it's embedding to the PRODUCTS table
+    Add a new artwork with it's embedding to the ARTWORKS table
     
-    :param url: the url of the product
+    :param external_id: the id for each artwork from the museum's API
+    :type external_id: int
+    :param image_url: the url for the image
     :type url: str
-    :param image_path: the path for the product's image
-    :type image_path: str
+    :param page_url: the url for the site's page
+    :type page_url: str
+    :param category: artwork;s category
+    :type category: str
+    :param title: artwork title
+    :type title: str
+    :param artist: the artwork's artist
+    :type artist: str
     :param embedding_vector: Image's embedding from resnet50
     :type embedding_vector: np.ndarray
-    :param category: clothe's category
-    :type embedding_vector: str
+
     """
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
         cursor.execute('''
-            INSERT INTO PRODUCTS (url, image_path, embedding, created_at)
-            VALUES(?, ?, ?, ?, ?)
-                       ''',(url, image_path, category, json.dumps(embedding_vector.tolist()), datetime.now()))
+            INSERT INTO ARTWORKS (external_id, image_url, page_url, category, title, artist, embedding, created_at)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+                       ''',(external_id, image_url, page_url, category, title, artist, json.dumps(embedding_vector.tolist()), datetime.now()))
         conn.commit()
     except sqlite3.IntegrityError:
-        logger.warning(f"The product {url} already exists in the database. Unsuccesfully insert.")
+        logger.warning(f"The artwork {image_url} already exists in the database. Unsuccesfully insert.")
     finally:
         conn.close()
 
 # --- ADD/EDIT PREFERENCE ---
-def log_preference(url : str , preference : str) -> None:
+def log_preference(image_url : str , preference : str) -> None:
     """
-    Add or edit a preference of the user for a product
+    Add or edit a preference of the user for an artwork
     
-    :param url: the url of the product
+    :param image_url: the url of the image
     :type url: str
     :param preference: LIKE OR DISLIKE
     :type preference: str
@@ -100,54 +109,51 @@ def log_preference(url : str , preference : str) -> None:
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Find the product's id from the url
-    cursor.execute("SELECT id FROM PRODUCTS WHERE url = ?", (url,))
+    # Find the artwork's id from the url
+    cursor.execute("SELECT id FROM ARTWORKS WHERE image_url = ?", (image_url,))
     result = cursor.fetchone()
 
     if result:
-        product_id = result[0]
+        artwork_id = result[0]
         cursor.execute('''
-            INSERT OR REPLACE INTO PREFERENCES (id, product_id, preference, timestamp)
-            VALUES(
-                    (SELECT id FROM PREFERENCES WHERE product_id = ?), ?, ?, ?)
-                       ''', (product_id, product_id, preference, datetime.now()))
+            INSERT OR REPLACE INTO PREFERENCES (artwork_id, preference, timestamp)
+            VALUES(?, ?, ?)
+                       ''', (artwork_id, preference, datetime.now()))
         
         conn.commit()
-        logger.info(f"The preference for the product {product_id} is set to {preference}.")
+        logger.info(f"The preference for the artwork {artwork_id} is set to {preference}.")
     else:
-        logger.error("The product was not found in the database.")
+        logger.error("The artwork was not found in the database.")
 
     conn.close()
 
 #--- Remove user's preference for a product
 def remove_preference(url: str) -> None :
     """
-    Remove the users preference for a product.
+    Remove the users preference for an artwork.
     
-    :param url: the url of the product
+    :param url: the url of the artwork
     :type url: str
     """
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Find the product's id using the url
-    cursor.execute("SELECT id FROM PRODUCTS WHERE url = ?", (url,))
-    result = cursor.fetchone()
+    # Find the artwork's id using the url
+    cursor.execute("SELECT id FROM ARTWORKS WHERE image_url = ?", (url,))
+    result = cursor.fetchone()[0]
 
     # If the remove_preference function is called then the product is surely in the table
-    cursor.execute(" DELETE FROM PREFERENCES WHERE product_id = ?", (result,))
+    cursor.execute(" DELETE FROM PREFERENCES WHERE artwork_id = ?", (result,))
     conn.commit()
-    logger.info(f"The preference for the product {result} was succesfully removed.")
+    logger.info(f"The preference for the artwork {result} was succesfully removed.")
 
     conn.close()
 
-#--- Get the users embeddings for the products
-def user_embeddings(category : str) -> tuple:
+#--- Get the users embeddings for the artworks
+def user_embeddings() -> tuple:
     """
     Find the images that the user likes and return the embeddings
     
-    :param category: clothe's category
-    :type category: str
     :return: LikedEmbeddings, DislikedEmbeddings
     :rtype: tuple
     """
@@ -157,14 +163,12 @@ def user_embeddings(category : str) -> tuple:
 
     # Fetch LIKES
     cursor.execute('''
-        SELECT P.embedding FROM PRODUCTS P JOIN PREFERENCES PREF ON P.id = PREF.product_id  WHERE PREF.preference = "LIKE" AND P.category = ?
-                  ''', (category,))
+        SELECT A.embedding FROM ARTWORKS A JOIN PREFERENCES PREF ON A.id = PREF.artwork_id  WHERE PREF.preference = "LIKE" ''')
     liked = [np.array(json.loads(row[0])) for row in cursor.fetchall() if row[0]]
 
     # Fetch DISLIKES
     cursor.execute('''
-        SELECT P.embedding FROM PRODUCTS P JOIN PREFERENCES PREF ON P.id = PREF.product_id  WHERE PREF.preference = "DISLIKE" AND P.category = ?
-                  ''', (category,))
+        SELECT A.embedding FROM ARTWORKS A JOIN PREFERENCES PREF ON A.id = PREF.artwork_id  WHERE PREF.preference = "DISLIKE" ''')
     disliked = [np.array(json.loads(row[0])) for row in cursor.fetchall() if row[0]]
     
     conn.close()
