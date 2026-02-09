@@ -174,6 +174,16 @@ def user_embeddings() -> tuple:
     conn.close()
     return liked, disliked
 
+# --- GET SEEN ARTWORKS ---
+def get_seen_artwork_ids():
+    """Returns a list of artwork IDs that the user has already interacted with."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT artwork_id FROM PREFERENCES")
+    seen_ids = [row[0] for row in cursor.fetchall()]
+    conn.close()
+    return seen_ids
+
 
 if __name__ == "__main__":
     initialize_db()
