@@ -149,6 +149,30 @@ def remove_preference(url: str) -> None :
 
     conn.close()
 
+#--- Get the artworks and their preference as dictionary ---
+def user_preferences_dict() -> dict:
+    """
+    Find the artworks the user has a preference and save to a a dictionary ({external_id : "Preference"})
+    
+    :return: A dictionary with the artowrk id and user preference
+    :rtype: dict
+    """
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT A.external_id, P.preference FROM PREFERENCES P JOIN ARTWORKS A ON P.artwork_id=A.id
+                   ''')
+    
+    rows = cursor.fetchall()
+    preferences_dict = {row[0]: row[1] for row in rows}
+
+    conn.close()
+
+    return [preferences_dict]
+
+
 #--- Get the users embeddings for the artworks
 def user_embeddings() -> tuple:
     """
@@ -173,17 +197,6 @@ def user_embeddings() -> tuple:
     
     conn.close()
     return liked, disliked
-
-# --- GET SEEN ARTWORKS ---
-def get_seen_artwork_ids():
-    """Returns a list of artwork IDs that the user has already interacted with."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT artwork_id FROM PREFERENCES")
-    seen_ids = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    return seen_ids
-
 
 if __name__ == "__main__":
     initialize_db()
