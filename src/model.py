@@ -1,8 +1,7 @@
 """
 MODULE: models.py
-DESCRIPTION: Converts input images into embeddings. For the clothes details using the pre-trained model resnet50.
+DESCRIPTION: Converts input images into embeddings. For the artworks details using the pre-trained model resnet50.
 With a preprocessing pipeline resizes images to 247 x 247 pixels. Apply normalization based on ImageNet's mean and standard deviation.
-Concatenate resnet's embeddings with KMeans color vector.
 """
 
 # --- Import Libraries ---
@@ -34,7 +33,7 @@ image_preprocess = transforms.Compose([
 ])
 
 
-class VectorConventor:
+class VectorConverter:
     """
     Load the resnet model and convert the image to embeddings (vector).
     """
