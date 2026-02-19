@@ -10,7 +10,7 @@ import sqlite3
 import json
 import numpy as np
 from datetime import datetime
-from src.utils import setup_logger
+from utils import setup_logger
 
 logger = setup_logger("Database")
 
