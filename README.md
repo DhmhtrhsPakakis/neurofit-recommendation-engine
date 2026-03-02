@@ -26,34 +26,47 @@ Welcome to **NeuroFit**, your personal smart art gallery! NeuroFit is not just a
 ```markdown
 # ⚙️ NeuroFit Art Recommender - Technical Documentation
 
-**NeuroFit** is an advanced Recommendation System that combines Computer Vision, Machine Learning, and an Asynchronous Graphical User Interface (GUI). The system fetches data from external APIs, extracts features (feature embeddings) via Deep Learning, and uses similarity algorithms to filter content in real-time.
+**NeuroFit** is an advanced Recommendation System that combines Computer Vision, Machine Learning
+and an Asynchronous Graphical User Interface (GUI). The system fetches data from external APIs,
+extracts features (feature embeddings) via Deep Learning,
+and uses similarity algorithms to filter content in real-time.
 
 ## 🏗️ System Architecture
 
 The project follows a decoupled architecture (UI and Backend separation), based on 4 main pillars:
 
 ### 1. Asynchronous Data Pipeline (Background Threading)
-To prevent the UI from freezing during image downloads, the application uses a `DataPipeline` running on a separate Daemon Thread.
+To prevent the UI from freezing during image downloads, the application uses a `DataPipeline`running on a separate Daemon Thread.
 * Communicates with the API Scraper to download pages of artworks in batches.
 * Forwards artworks to the Recommender for approval.
 * Routes the results into Thread-safe Queues (`queue.Queue`) for smooth UI updates (Producer-Consumer pattern).
 
 ### 2. NeuroFit AI Recommender Engine
 The "heart" of the system. It works as follows:
-* **Feature Extraction:** Each downloaded image passes through a pre-trained convolutional neural network (**ResNet50**). The network removes the final classification layers and extracts a dense feature vector (Embedding Vector).
-* **Cosine Similarity Check:** The system uses the `scikit-learn` library to calculate the Cosine Similarity between the new vector and the vectors of artworks the user has Liked or Disliked. If the new artwork is too similar to the Dislikes, it is automatically rejected.
+* **Feature Extraction:** Each downloaded image passes through a pre-trained convolutional neural network (**ResNet50**).
+The network removes the final classification layers and extracts a dense feature vector (Embedding Vector).
+* **Cosine Similarity Check:** The system uses the `scikit-learn` library to calculate the Cosine Similarity between
+the new vector and the vectors of artworks the user has Liked or Disliked. If the new artwork is too similar to the Dislikes,
+it is automatically rejected.
 
 ### 3. Database & Memory (SQLite & Local Caching)
 Data management has been optimized to minimize Network Requests:
-* **SQLite Database (`art_recommender.db`):** A relational database with two tables (`ARTWORKS` & `PREFERENCES`) with strict Foreign Keys. The system permanently stores Numpy Embeddings (as JSON strings) and metadata *only* when the user interacts (Like/Dislike), saving disk space.
-* **Local Image Cache (`img_cache/`):** Images are stored locally. The GUI loads them directly from the disk using the `Pillow` library, preventing HTTP 403 Forbidden errors and API Timeouts.
-* **UI State Cache (`ui_preferences.json`):** Whitelist-based JSON caching (saves only strings/ints, ignoring numpy arrays) for instant loading of User Preferences in modal windows.
+* **SQLite Database (`art_recommender.db`):** A relational database with two tables (`ARTWORKS` & `PREFERENCES`)
+with strict Foreign Keys. The system permanently stores Numpy Embeddings (as JSON strings) and metadata *only* when
+the user interacts (Like/Dislike), saving disk space.
+* **Local Image Cache (`img_cache/`):** Images are stored locally.
+The GUI loads them directly from the disk using the `Pillow` library, preventing HTTP 403 Forbidden errors and API Timeouts.
+* **UI State Cache (`ui_preferences.json`):** Whitelist-based JSON caching (saves only strings/ints,
+ignoring numpy arrays) for instant loading of User Preferences in modal windows.
 
 ### 4. Graphical User Interface (CustomTkinter)
 The GUI was designed with the `CustomTkinter` library, offering a modern Dark Mode UI.
-* **Lazy Loading & Pagination:** The gallery reads batches from the Pipeline and loads cards (`ArtCard`) dynamically.
-* **Memory Management:** Implementation of strict reference control (garbage collection overrides) to keep images in memory (Tkinter PhotoImage reference bug bypass).
-* **Cross-window Scrolling:** Dynamic management of MouseWheel events depending on which TopLevel modal (Preferences / Rejected) has the focus.
+* **Lazy Loading & Pagination:** The gallery reads batches from the Pipeline and
+loads cards (`ArtCard`) dynamically.
+* **Memory Management:** Implementation of strict reference control (garbage collection overrides)
+to keep images in memory (Tkinter PhotoImage reference bug bypass).
+* **Cross-window Scrolling:** Dynamic management of MouseWheel events depending
+on which TopLevel modal (Preferences / Rejected) has the focus.
 
 ## 🛠️ Technologies & Tools
 * **Language:** Python 3.11
