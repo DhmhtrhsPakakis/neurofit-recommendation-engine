@@ -10,7 +10,7 @@ import sqlite3
 import json
 import numpy as np
 from datetime import datetime
-from utils import setup_logger
+from src.utils import setup_logger
 
 logger = setup_logger("Database")
 
@@ -170,7 +170,7 @@ def user_preferences_dict() -> dict:
 
     conn.close()
 
-    return [preferences_dict]
+    return preferences_dict
 
 
 #--- Get the users embeddings for the artworks
