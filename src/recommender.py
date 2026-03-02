@@ -11,9 +11,9 @@ import os
 import requests
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
-from utils import setup_logger
-from database import user_embeddings, user_preferences_dict
-from model import VectorConverter
+from src.utils import setup_logger
+from src.database import user_embeddings, user_preferences_dict, add_artwork
+from src.model import VectorConverter
 
 logger = setup_logger("Recommender")
 
@@ -35,19 +35,34 @@ class Recommender:
 
 
     def _download_image(self, url, filename):
-            """
-            Downloads an imagte to a temporary file            
-            """
-            try:
-                headers = {'User-Agent': 'Mozilla/5.0'}
-                r = requests.get(url, headers=headers, stream=True, timeout=10)
+        """
+        Downloads an image to a temporary file.
+        Uses enhanced headers to bypass strict 403 Forbidden API blocks.
+        """
+        try:
+            # Enhanced Headers to mimic a real Chrome browser perfectly
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': 'https://www.artic.edu/'
+            }
+            
+            # Use a session to persist connections (often helps with CDNs)
+            with requests.Session() as session:
+                r = session.get(url, headers=headers, stream=True, timeout=10)
+                
                 if r.status_code == 200:
                     with open(filename, 'wb') as f:
                         for chunk in r.iter_content(1024):
                             f.write(chunk)
                     return True
-            except:
-                return False
+                else:
+                    logger.warning(f"❌ HTTP Error {r.status_code} while downloading: {url}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"❌ Network/File Error while downloading image: {e}")
             return False
         
     def similarity_check(self, candidate_vector):
@@ -84,32 +99,41 @@ class Recommender:
         
          approved_artworks = []
          already_approved_artworks = []
-         temp_filename  = "temp.jpg"
+         rejected_artworks = []
+
+          # Create Directory to temporary save the images to show
+         os.makedirs("img_cache", exist_ok=True)
 
          for artwork in artworks:
-              ext_id = artwork['id']
-
+              ext_id = str(artwork['id'])
+              local_path = f"img_cache/{ext_id}.jpg"
+              
               # Check if the artwork is in the preference list
               if ext_id in self.seen_artworks:
                    if not self.seen_artworks[ext_id] == "DISLIKE":
-                        already_approved_artworks.append(artwork)
+                        if not os.path.exists(local_path):
+                             self._download_image(artwork["image_url"], local_path)
+                   artwork['local_path']= local_path
+                   already_approved_artworks.append(artwork)
                    continue
               
-              if self._download_image(artwork['image_url'], temp_filename):
+              if self._download_image(artwork['image_url'], local_path):
                    try:
                         # Create the embedding
-                        vector = self.converter.create_embedding(temp_filename)
+                        vector = self.converter.create_embedding(local_path)
 
                         # Check if the image pass the similarity check
                         passes = self.similarity_check(vector)
 
+                        artwork['local_path'] = local_path
+                        artwork['embedding_vector'] = vector
+
                         if passes == True:
                              approved_artworks.append(artwork)
+                        else:
+                             rejected_artworks.append(artwork)
+                             print("!!!!! Rejected artwork!!!!!!!!!")
                    except Exception as e:
                         logger.error(f"Error checking artwork {ext_id}: {e}")
-
-         # Delete temporary image file
-         if os.path.exists(temp_filename):
-              os.remove(temp_filename)
         
-         return approved_artworks, already_approved_artworks
+         return approved_artworks, already_approved_artworks, rejected_artworks
