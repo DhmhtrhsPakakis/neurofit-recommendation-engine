@@ -6,7 +6,7 @@ website. Designed to serve as a continuous data source for the recommendation en
 """
 
 import requests
-from utils import setup_logger
+from src.utils import setup_logger
 
 # Logging setup
 logger = setup_logger("Scraper")
