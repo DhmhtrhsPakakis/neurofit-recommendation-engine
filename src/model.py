@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 from torchvision import models, transforms
 from PIL import Image 
-from utils import setup_logger
+from src.utils import setup_logger
 
 logger = setup_logger("Embeddings Convert")
 # --- Configuration ---
